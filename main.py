@@ -41,8 +41,10 @@ def main():
     # read data from excel files
     file_name = 'Datasett_NO1_Cleaned_r2.xlsx'
     data = read_data(file_name)
-    DCOPF_Model(data, B_matrix)
-    return data
+    b_matrix = create_B_matrix(data)
+    DCOPF_Model(data, b_matrix)
+    return()
+
 
 def read_data(file):
     # read data from file
@@ -53,14 +55,17 @@ def read_data(file):
         data[sheet] = df.to_dict(orient='list')
     return data
 
-    
-def fix_Data(data):
-    # fix the data to be in the right format
-    return data
-    
-def DCOPF_Model(data, B_matrix):
+
+def create_B_matrix(data):
+
+    length = len(data['Node'])
+    b_matrix = np.zeros((length, length))
+    return b_matrix
+
+
+def DCOPF_Model(data, b_matrix):
     """
-    Setup the optimization model, run it and store the data in a .xlsx file
+    Set up the optimization model, run it and store the data in a .xlsx file
     """
     model = pyo.ConcreteModel() #Establish the optimization model, as a concrete model in this case
 
