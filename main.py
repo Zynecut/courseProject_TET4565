@@ -72,7 +72,9 @@ def DCOPF_Model(data, b_matrix):
     """
     Sets
     """
-
+    model.Producers = pyo.Set(initialize=xxx)  # Generators
+    model.Consumers = pyo.Set(initialize=xxx)  # Load units
+    model.Nodes = pyo.Set(initialize=xxx)  # Nodes
 
     """
     Parameters
