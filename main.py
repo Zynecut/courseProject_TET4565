@@ -41,8 +41,8 @@ def main():
     # read data from excel files
     file_name = 'Datasett_NO1_Cleaned_r2.xlsx'
     data = read_data(file_name)
-    b_matrix = create_B_matrix(data)
-    DCOPF_Model(data, b_matrix)
+    # b_matrix = create_B_matrix(data)
+    DCOPF_Model(data) #, b_matrix)
     return()
 
 
@@ -57,13 +57,12 @@ def read_data(file):
 
 
 def create_B_matrix(data):
-
     length = len(data['Node'])
     b_matrix = np.zeros((length, length))
     return b_matrix
 
 
-def DCOPF_Model(data, b_matrix):
+def DCOPF_Model(data):# , b_matrix):
     """
     Set up the optimization model, run it and store the data in a .xlsx file
     """
