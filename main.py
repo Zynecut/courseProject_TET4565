@@ -43,7 +43,7 @@ def main():
     # read data from excel files
     file_name = 'Datasett_NO1_Cleaned_r4.xlsx'
     data = inputData(file_name)
-
+    x = 2
     # DCOPF_Model(data) #, b_matrix)
     return()
 
@@ -69,14 +69,21 @@ def modelSetup(data):# , b_matrix):
     """
     Sets
     """
-    m.Producers = pyo.Set(initialize=xxx)  # Generators
-    m.Consumers = pyo.Set(initialize=xxx)  # Load units
-    m.Nodes = pyo.Set(initialize=xxx)  # Nodes
+    m.Producers = pyo.Set(initialize=data['Producers']['Producer'])  # Generators
+    m.Consumers = pyo.Set(initialize=data['Consumers']['load'])  # Load units
+    # m.Nodes = pyo.Set(initialize=xxx)  # Nodes
 
     """
     Parameters
     """
+    m.pmax = pyo.Param(m.Producers, initialize=data['Producers']['pmax'])  # Max power output
+    m.pmin = pyo.Param(m.Producers, initialize=data['Producers']['pmin'])  # Min power output
+    m.mc = pyo.Param(m.Producers, initialize=data['Producers']['marginal_cost'])  # Marginal cost
+    m.storage_cap = pyo.Param(m.Producers, initialize=data['Producers']['storage_cap'])  # Storage capacity
+    m.type = pyo.Param(m.Producers, initialize=data['Producers']['type'])  # Type of generator
 
+    m.Demand = pyo.Param(m.Consumers, initialize=data['Consumers']['consumption'])  # Demand
+    m.Rationing = pyo.Param(m.Consumers, initialize=data['Consumers']['Rationing cost'])  # Rationing
 
     """
     Variables
