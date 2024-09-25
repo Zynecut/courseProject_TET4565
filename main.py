@@ -4,69 +4,70 @@ import pandas as pd
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 
+
 # Structure
 
 """
-generator data: capacity, marg_cost, location, slackbus, CO2_emission
+Stochasticity in linear programming
 
-load data: demand, marg_WTP, location
+Hard constraints -> Robust optimization
+Soft constraints -> Chance constraints
 
-transmission data, capacity, susceptance
-
-
-Datasett Producers comment
-Fuelcost neglected for wind, solar and hydro
-Inflow_factor neglected (hydro)
-Storage price neglected. (hydro)
-Initial storage neglected. (hydro)
-Marginal_cost is just a wild guess
-
-
-Datasett Consumers comment
-Add flexible consumers (WTP)?
-
-
-Datasett Time comment
-Load is given as a ratio of demand
-Wind is given as a ratio of p_max
-Solar is given as a ratio of p_max
-
-
-Datasett Node comment
-Only for geographical plotting 
 
 """
 
 def main():
-    # read data from excel files
-    file_name = 'Datasett_NO1_Cleaned_r2.xlsx'
-    data = read_data(file_name)
-    DCOPF_Model(data, B_matrix)
-    return data
 
-def read_data(file):
-    # read data from file
+    file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
+    data = inputData(file_name)
+    m = modelSetup(data)
+    results, m = SolveModel(m)
+    DisplayModelResults(m)
+    return()
+
+
+
+def inputData(file):
+    """
+    Reads data from the Excel file and returns a dictionary containing data from relevant sheets.
+
+    Parameters:
+    file (str): The path to the Excel file.
+
+    Returns:
+    dict: A dictionary containing data from each sheet as lists of dictionaries.
+    """
     data = {}
-    excel_sheets = ['Producers', 'Consumers', 'Time', 'Node']
+    excel_sheets = ['Producers', 'Consumers', 'Time_wind']
     for sheet in excel_sheets:
         df = pd.read_excel(file, sheet_name=sheet)
-        data[sheet] = df.to_dict(orient='list')
+        df.index += 1
+        data[sheet] = df.to_dict()
     return data
 
-    
-def fix_Data(data):
-    # fix the data to be in the right format
-    return data
-    
-def DCOPF_Model(data, B_matrix):
+
+
+def ObjFunction(m):
+    return
+
+# Define probabilities for the three scenarios (low, med, high)
+scenario_probabilities = {'low': 1/3, 'med': 1/3, 'high': 1/3}
+
+
+
+def modelSetup(data):# , b_matrix):
     """
-    Setup the optimization model, run it and store the data in a .xlsx file
+    Set up the optimization model, run it and store the data in a .xlsx file
     """
-    model = pyo.ConcreteModel() #Establish the optimization model, as a concrete model in this case
+    m = pyo.ConcreteModel() #Establish the optimization model, as a concrete model in this case
 
     """
     Sets
     """
+    m.P = pyo.Set(initialize=list(data['Producers']['type'].keys()))
+    m.C = pyo.Set(initialize=list(data['Consumers']['load'].keys()))
+    m.S = pyo.Set(initialize=['low', 'med', 'high'])
+    m.K = pyo.Set(initialize=[1, 2])
 
 
     """
@@ -75,16 +76,40 @@ def DCOPF_Model(data, B_matrix):
 
 
     """
-    Variables
+    Decision Variables
     """
+
+
+    """
+    Stochastic Variables
+    """
+
+
 
 
     """
     Objective Function
     """
+    # Define objective function
+    m.obj = pyo.Objective(rule=ObjFunction, sense=pyo.minimize)
+    # m.obj = pyo.Objective(rule=StochasticObjFunction, sense=pyo.minimize)
+
+    return m
+
+# Solve function
+def SolveModel(m):
+    opt = SolverFactory("gurobi")
+    m.dual = pyo.Suffix(direction=pyo.Suffix.IMPORT)
+    results = opt.solve(m, load_solutions=True)
+    return results, m
 
 
-    return()
+# Display results
+def DisplayModelResults(m):
+    # return m.pprint()
+    return print(m.display(), m.dual.display())
+
+
 
 
 if __name__ == '__main__':
