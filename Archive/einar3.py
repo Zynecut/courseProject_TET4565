@@ -3,9 +3,6 @@ import numpy as np
 import pandas as pd
 from pyomo.opt import SolverFactory
 
-# Definer manuell innmelt produksjon for første dagen
-manual_nuclear_day1 = 200  # Manuell produksjon for nuclear dag 1
-manual_hydro_day1 = 30     # Manuell produksjon for hydro dag 1
 
 # Vindscenarioer med produksjon for dag 1 og dag 2
 wind_scenario_values = {
@@ -42,7 +39,9 @@ model.Rationing = Var(model.Loads, model.Time, model.Scenarios, within=NonNegati
 model.Hydro_DA = Var(model.Time, within=NonNegativeReals)
 model.Nuclear_DA = Var(model.Time, within=NonNegativeReals)
 
-# Begrensning for produksjonen
+
+
+# Constraints
 def prod_lim_max(model, g, t, s):
     return model.Production[g, t, s] <= model.P_max[g]
 model.ProdMaxCons = Constraint(model.Generators, model.Time, model.Scenarios, rule=prod_lim_max)
@@ -52,42 +51,36 @@ def prod_lim_min(model, g, t, s):
 model.ProdMinCons = Constraint(model.Generators, model.Time, model.Scenarios, rule=prod_lim_min)
 
 def wind_prod_limit(model, t, s):
-    return model.Production['wind', t, s] <= model.P_wind[s, t]
+    return model.Production['wind', t, s] <= model.P_wind[s, t]                                                         # Sørger for at vindproduksjonen ikke overstiger tilgjengelig vind i hvert scenario.
 model.WindProdLimit = Constraint(model.Time, model.Scenarios, rule=wind_prod_limit)
 
-# Frys dag 1 produksjon basert på manuell input
-def freeze_day1_nuclear(model, s):
-    return model.Production["nuclear", "02/06/2020", s] == manual_nuclear_day1
-model.FreezeDay1Nuclear = Constraint(model.Scenarios, rule=freeze_day1_nuclear)
-
-def freeze_day2_nuclear(model, s):
-    return model.Production["nuclear", "03/06/2020", s] == manual_nuclear_day1
-model.FreezeDay2Nuclear = Constraint(model.Scenarios, rule=freeze_day2_nuclear)
-
-def freeze_day1_hydro(model, s):
-    return model.Production["hydro", "02/06/2020", s] == manual_hydro_day1
-model.FreezeDay1Hydro = Constraint(model.Scenarios, rule=freeze_day1_hydro)
+def locked_nuclear_prod(model, s):
+    return model.Production["nuclear", "02/06/2020", s] == model.Production["nuclear", "03/06/2020", s]
+model.LockedNuclearProd = Constraint(model.Scenarios, rule=locked_nuclear_prod)
 
 
-# Real-time justering av hydro for dag 2 (nedre og øvre grense)
 def hydro_real_time_adjustment_lower(model, t, s):
     if t == "02/06/2020":
         return Constraint.Skip  # Ingen justering for dag 1
-    return model.Production["hydro", t, s] >= manual_hydro_day1 - model.P_reserved["hydro"]  # Minimum hydro på dag 2
+    else:
+        return model.Production["hydro", "02/06/2020", s] - model.P_reserved["hydro"] <= model.Production["hydro", t, s]        # Bruker produksjonen fra dagen før som et utgangspunkt og setter en nedre grense for nedjustering.
 model.HydroRealTimeAdjustmentLowerCons = Constraint(model.Time, model.Scenarios, rule=hydro_real_time_adjustment_lower)
 
 def hydro_real_time_adjustment_upper(model, t, s):
     if t == "02/06/2020":
         return Constraint.Skip  # Ingen justering for dag 1
-    return model.Production["hydro", t, s] <= manual_hydro_day1 + model.P_reserved["hydro"]  # Maksimum hydro på dag 2
+    else:
+        return model.Production["hydro", "02/06/2020", s] + model.P_reserved["hydro"] >= model.Production["hydro", t, s]         # Bruker produksjonen fra dagen før som et utgangspunkt og setter en øvre grense for oppjustering.
 model.HydroRealTimeAdjustmentUpperCons = Constraint(model.Time, model.Scenarios, rule=hydro_real_time_adjustment_upper)
 
-# Lastbalansering
+
+
+# Load balance
 def load_balance_cons(model, l, t, s):
     return sum(model.Production[g, t, s] for g in model.Generators) + model.Rationing[l, t, s] >= model.Load_Demand[l]
 model.LoadBalanceCons = Constraint(model.Loads, model.Time, model.Scenarios, rule=load_balance_cons)
 
-# Objektivfunksjon
+# Objective
 def objective_rule(model):
     production_cost = sum(model.Production[g, t, s] * model.MC[g] for g in model.Generators for t in model.Time for s in model.Scenarios)
     reserved_cost = sum(model.P_reserved["hydro"] * model.C_reserved["hydro"] for t in model.Time)
@@ -95,12 +88,12 @@ def objective_rule(model):
     return production_cost + reserved_cost + rationing_cost
 model.Objective = Objective(rule=objective_rule, sense=minimize)
 
-# Løsning
+# Solve
 model.dual = Suffix(direction=Suffix.IMPORT)
 solver = SolverFactory('glpk')
 solver.solve(model, tee=True)
 
-# Hente ut resultater
+# Get results in a DataFrame for printing
 results = []
 for t in model.Time:
     for s in model.Scenarios:
@@ -109,17 +102,19 @@ for t in model.Time:
         wind_prod = model.Production['wind', t, s].value
         rationing_value = model.Rationing['Load 1', t, s].value
         reserved_hydro = model.P_reserved['hydro']
+        wind_spilled = model.P_wind[s, t] - wind_prod  # Beregn vind som ikke blir produsert
         results.append({
             'Time': t,
             'Scenario': s,
             'Nuclear Production (MW)': nuclear_prod,
             'Hydro Production (MW)': hydro_prod,
             'Wind Production (MW)': wind_prod,
+            'Wind Spilled (MW)': wind_spilled,
             'Rationing (MW)': rationing_value,
             'Hydro Reserved for Next Day (MW)': reserved_hydro
         })
 
-# Presentere resultater
+# Present results
 df_results = pd.DataFrame(results)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.expand_frame_repr', False)

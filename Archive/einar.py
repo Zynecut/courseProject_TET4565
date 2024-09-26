@@ -24,7 +24,7 @@ def inputData(file):
     return data
 
 
-file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
+file_name = '../Datasett_NO1_Cleaned_r5.xlsx'
 data = inputData(file_name)
 
 

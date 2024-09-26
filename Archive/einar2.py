@@ -80,6 +80,19 @@ def wind_prod_limit(model, t, s):
 model.WindProdLimit = Constraint(model.Time, model.Scenarios, rule=wind_prod_limit)                             # Begrenser produksjonen fra vind til det som er tilgjengelig i hvert scenario.
 
 
+# def freeze_day1_nuclear(model, s):
+#     return model.Production["nuclear", "02/06/2020", s] == manual_nuclear_day1
+# model.FreezeDay1Nuclear = Constraint(model.Scenarios, rule=freeze_day1_nuclear)
+#
+# def freeze_day2_nuclear(model, s):
+#     return model.Production["nuclear", "03/06/2020", s] == manual_nuclear_day1
+# model.FreezeDay2Nuclear = Constraint(model.Scenarios, rule=freeze_day2_nuclear)
+#
+# def freeze_day1_hydro(model, s):
+#     return model.Production["hydro", "02/06/2020", s] == manual_hydro_day1
+# model.FreezeDay1Hydro = Constraint(model.Scenarios, rule=freeze_day1_hydro)
+
+
 # Hydro produksjonen må være innenfor det som er meldt inn dagen før +- reservert kapasitet.
 def hydro_real_time_adjustment_lower(model, t, s):                                                                      # Real-time justering av hydro (nedre grense)
     return model.Production["hydro", t, s] >= model.Hydro_DA[t] - model.P_reserved["hydro"]                             # Real-time produksjon må være større eller lik hydro meldt inn dagen før minus reservert kapasitet.
