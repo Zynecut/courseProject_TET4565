@@ -49,20 +49,21 @@ model.Time = Set(initialize=["02/06/2020", "03/06/2020"])                       
 
 
 # Parameters - Definerer konstanter/ verdier knyttet til settene. "Tenker på hvert sett som et objekt og så henger jeg verdier på dette objektet."
-model.P_max = Param(model.Generators, initialize={"nuclear": 200, "hydro": 40, "wind": 80})                     # Her har jeg lagt inn 40 på hydro siden det er det som maks kan allokeres i day-ahead market.
-model.P_min = Param(model.Generators, initialize={"nuclear": 0, "hydro": 0, "wind": 0})
-model.MC = Param(model.Generators, initialize={"nuclear": 15, "hydro": 30, "wind": 0})
+model.P_max = Param(model.Generators, initialize={"nuclear": 200, "hydro": 60, "wind": 80})                     # Maximum capacity [MW]
+model.P_min = Param(model.Generators, initialize={"nuclear": 0, "hydro": 0, "wind": 0})                         # Minimum capacity [MW]
+model.MC = Param(model.Generators, initialize={"nuclear": 15, "hydro": 30, "wind": 0})                          # Marginal costs [Euro/MWh]
 model.P_reserved = Param(model.Generators, initialize={"nuclear": 0, "hydro": 20, "wind": 0})                   # Reserved capacity for each generator for the next day [MW]
 model.C_reserved = Param(model.Generators, initialize={"nuclear": 0, "hydro": 30, "wind": 0})                   # Cost for reserving capacity for the next day [Euro/MWh]
 model.Load_Demand = Param(model.Loads, initialize={"Load 1": 250})                                              # Load demand for the inflexible load [MW]
-model.C_rationing = Param(initialize=250)                                                                               # Rationing cost [Euro/MWh]
+model.C_rationing = Param(initialize=2500)                                                                              # Rationing cost [Euro/MWh]
 model.P_wind = Param(model.Scenarios, model.Time, initialize=wind_scenario_values)
 
 
 #  Variables
-model.Production = Var(model.Generators, model.Time, model.Scenarios, within=NonNegativeReals)                  # Produksjon fra nuclear og hydro
+model.Production = Var(model.Generators, model.Time, model.Scenarios, within=NonNegativeReals)                  # Produksjon fra nuclear og hydro. Dette blir da real-time produksjonen.
 model.Rationing = Var(model.Loads, model.Time, model.Scenarios, within=NonNegativeReals)                        # Rasjonering (slakkvariabel for underdekning) Denne slakkvariabelen vil bidra til objektivfunksjonen med en høy kostnad, men vil bare bli aktiv dersom etterspørselen ikke kan møtes.
-
+model.Hydro_DA = Var(model.Time, within=NonNegativeReals)                                                       # Day-ahead produksjonsvariabel for hydro (dag 1). Må ha en egen for day-ahead.
+model.Nuclear_DA = Var(model.Time, within=NonNegativeReals)                                                     # Day-ahead produksjonsvariabel for nuclear (dag 1). Må ha en egen for day-ahead.
 
 
 #  Constraints
@@ -78,9 +79,17 @@ def wind_prod_limit(model, t, s):
     return model.Production['wind', t, s] <= model.P_wind[s, t]
 model.WindProdLimit = Constraint(model.Time, model.Scenarios, rule=wind_prod_limit)                             # Begrenser produksjonen fra vind til det som er tilgjengelig i hvert scenario.
 
-def reserved_cap_cons(model, t, s):
-    return model.Production["hydro", t, s] >= model.P_reserved["hydro"]
-model.ReservedCapacityCons = Constraint(model.Time, model.Scenarios, rule=reserved_cap_cons)
+
+# Hydro produksjonen må være innenfor det som er meldt inn dagen før +- reservert kapasitet.
+def hydro_real_time_adjustment_lower(model, t, s):                                                                      # Real-time justering av hydro (nedre grense)
+    return model.Production["hydro", t, s] >= model.Hydro_DA[t] - model.P_reserved["hydro"]                             # Real-time produksjon må være større eller lik hydro meldt inn dagen før minus reservert kapasitet.
+model.HydroRealTimeAdjustmentLowerCons = Constraint(model.Time, model.Scenarios, rule=hydro_real_time_adjustment_lower)
+
+# Real-time justering av hydro (øvre grense)
+def hydro_real_time_adjustment_upper(model, t, s):                                                                      # Real-time justering av hydro (øvre grense)
+    return model.Production["hydro", t, s] <= model.Hydro_DA[t] + model.P_reserved["hydro"]                             # Real-time produksjon må være mindre eller lik hydro meldt inn dagen før pluss reservert kapasitet.
+model.HydroRealTimeAdjustmentUpperCons = Constraint(model.Time, model.Scenarios, rule=hydro_real_time_adjustment_upper)
+
 
 def load_balance_cons(model, l, t, s):
     return sum(model.Production[g, t, s] for g in model.Generators) + model.Rationing[l, t, s] >= model.Load_Demand[l]  # i model.Load_Demand[l] er l lasten. Trenger ikke t eller s fordi lasten er konstant over tid og scenario.
@@ -114,6 +123,7 @@ for t in model.Time:
         hydro_prod = model.Production['hydro', t, s].value
         wind_prod = model.Production['wind', t, s].value
         rationing_value = model.Rationing['Load 1', t, s].value
+        reserved_hydro = model.P_reserved['hydro']  # Reservert kapasitet for hydro
         # Append the results for each time, scenario, and generator to the list
         results.append({
             'Time': t,
@@ -121,16 +131,15 @@ for t in model.Time:
             'Nuclear Production (MW)': nuclear_prod,
             'Hydro Production (MW)': hydro_prod,
             'Wind Production (MW)': wind_prod,
-            'Rationing (MW)': rationing_value
+            'Rationing (MW)': rationing_value,
+            'Hydro Reserved for Next Day (MW)': reserved_hydro
         })
 
 # Convert the list of results to a DataFrame for better presentation
 df_results = pd.DataFrame(results)
 
-# Juster Pandas visningsinnstillinger for å vise hele DataFrame
 pd.set_option('display.max_columns', None)  # Vis alle kolonner
 pd.set_option('display.expand_frame_repr', False)  # Ikke avkort kolonner
 
-# Skriv ut DataFrame på nytt
 print(df_results)
 
