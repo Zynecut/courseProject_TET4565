@@ -44,9 +44,9 @@ def inputData(file):
         df.index += 1
         data[sheet] = df.to_dict()
 
-    df_nuke = pd.DataFrame(data['Producers'])
-    df_nuke = df_nuke.set_index('type')
-    data['Producers'] = df_nuke.to_dict()
+    df_prod = pd.DataFrame(data['Producers'])
+    df_prod = df_prod.set_index('type')
+    data['Producers'] = df_prod.to_dict()
 
     df = pd.DataFrame(data['Time_wind'])
     df = df.set_index('Stage')
@@ -92,29 +92,30 @@ def modelSetup(data):
     """
     Sets
     """
-    m.G = pyo.Set(initialize=list(data['Producers']['p_max'].keys()))
-    m.L = pyo.Set(initialize=list(data['Consumers']['load'].keys()))
-    m.S = pyo.Set(initialize=['low', 'med', 'high'])
-    m.K = pyo.Set(initialize=[1, 2])
+    m.G = pyo.Set(initialize=list(data['Producers']['p_max'].keys()))       # ('nuclear', 'hydro', 'wind')
+    m.L = pyo.Set(initialize=list(data['Consumers']['load'].keys()))        # (1)
+    m.S = pyo.Set(initialize=['low', 'med', 'high'])                        # ('low', 'med', 'high')
+    # m.K = pyo.Set(initialize=[1, 2])                                        # ('1', '2')
 
 
     """
     Parameters
     """
     # Producer data
-    m.p_max = pyo.Param(m.G, initialize=data['Producers']['p_max'])                 # Maximum power
-    m.p_res = pyo.Param(m.G, initialize=data['Producers']['p_res'])                 # Reserve power
-    m.res_cost = pyo.Param(m.G, initialize=data['Producers']['reserve_cost'])       # Reserve cost
-    m.mc = pyo.Param(m.G, initialize=data['Producers']['marginal_cost'])            # Marginal cost
+    m.p_max = pyo.Param(m.G, initialize=data['Producers']['p_max'])                 # Maximum power {nuclear: 200, hydro: 60, wind: 80}
+    m.p_res = pyo.Param(m.G, initialize=data['Producers']['p_res'])                 # Reserve power {nuclear: 0, hydro: 0, wind: 0}
+    m.res_cost = pyo.Param(m.G, initialize=data['Producers']['reserve_cost'])       # Reserve cost  {nuclear: 0, hydro: 30, wind: 0}
+    m.mc = pyo.Param(m.G, initialize=data['Producers']['marginal_cost'])            # Marginal cost {nuclear: 15, hydro: 30, wind: 0}
 
     # Consumer data
-    m.demand = pyo.Param(m.L, initialize=data['Consumers']['consumption'])              # Demand
-    m.rationing_cost = pyo.Param(m.L, initialize=data['Consumers']['rationing_cost'])   # Rationing cost
+    m.demand = pyo.Param(m.L, initialize=data['Consumers']['consumption'])              # Demand    {1: 250}
+    m.rationing_cost = pyo.Param(m.L, initialize=data['Consumers']['rationing_cost'])   # Rationing cost {1: 100}
 
     # Wind data
-    m.wind = pyo.Param(m.S, initialize=data['Time_wind'])   # Wind forecast scenarios
+    m.wind = pyo.Param(m.S, initialize=data['Time_wind'])   # Wind forecast scenarios   {'low': 34.5, 'med': 45.6, 'high': 55.9}
     m.wind_actual = pyo.Param(initialize=30)                        # Actual wind generation
-    m.wind.pprint()
+    # m.wind.pprint()
+
     """
     Decision Variables
     """
