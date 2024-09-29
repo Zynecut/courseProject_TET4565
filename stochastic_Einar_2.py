@@ -3,17 +3,6 @@ import numpy as np
 import pandas as pd
 from pyomo.opt import SolverFactory
 
-
-# Vindscenarioer med produksjon for dag 1 og dag 2
-# wind_scenario_values = {
-#     ('wind_med', 'stage_1'): 20.32,
-#     ('wind_med', 'stage_2'): 45.6,
-#     ('wind_high', 'stage_1'): 20.32,
-#     ('wind_high', 'stage_2'): 55.904,
-#     ('wind_low', 'stage_1'): 20.32,
-#     ('wind_low', 'stage_2'): 34.504
-# }
-
 wind_scenario_values = {
     ('wind_low'): 34.504,
     ('wind_med'): 45.6,
@@ -72,6 +61,9 @@ model.WindProdLimit = Constraint(model.Time, rule=wind_prod_limit)
 def locked_nuclear_prod(model):
     return model.Production["nuclear", "day_ahead"] == model.Production["nuclear", "real_time"]
 model.LockedNuclearProd = Constraint(rule=locked_nuclear_prod)
+
+
+
 
 def hydro_real_time_adjustment_lower(model, t, s):
     if t == "02/06/2020":
