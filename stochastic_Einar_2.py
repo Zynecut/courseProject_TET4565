@@ -24,7 +24,7 @@ model.P_min = Param(model.Generators, initialize={"nuclear": 0, "hydro": 0, "win
 model.MC = Param(model.Generators, initialize={"nuclear": 15, "hydro": 30, "wind": 0})
 model.P_reserved = Param(model.Generators, initialize={"nuclear": 0, "hydro": 20, "wind": 0})
 model.C_reserved = Param(model.Generators, initialize={"nuclear": 0, "hydro": 30, "wind": 0})
-model.Load_Demand = Param(model.Loads, initialize={"Load 1": 250})
+model.Load_Demand = Param(model.Loads, initialize={"Load 1": 500})
 model.Prob = Param(model.Scenarios, initialize={"wind_low": 0.6, "wind_med": 0.3, "wind_high": 0.1})
 model.C_rationing = Param(initialize=250)
 model.P_wind = Param(model.Scenarios, initialize=wind_scenario_values)
