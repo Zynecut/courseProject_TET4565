@@ -44,12 +44,10 @@ def inputData(file):
         data[sheet] = df.to_dict()
 
     df_prod = pd.DataFrame(data['Producers'])
-    # df_prod = df_prod.transpose()
     df_prod = df_prod.set_index('type')
     data['Producers'] = df_prod.to_dict()
 
     df_load = pd.DataFrame(data['Consumers'])
-    # df_load = df_load.transpose()
     df_load = df_load.set_index('load')
     data['Consumers'] = df_load.to_dict()
 
@@ -60,7 +58,7 @@ def inputData(file):
 
     return data
 
-const = {'p_res' : 20,'MC_res' : 30}
+const = {'p_res_min' : 20,'MC_res' : 25}
 
 """Set Variable Bounds"""
 def limit_nuclear_DA(m):
@@ -77,8 +75,7 @@ def limit_wind_RT(m, s):
     return m.P_min["wind"], m.P_max["wind"]
 def rationing_limits(m, l, s):
     return 0, m.demand[l]
-def reserved_DA(m):
-    return 0,const['p_res']
+
 
 """Constraints"""
 
@@ -92,8 +89,8 @@ def hydro_upper_RT(m, s):
     return m.hydro_RT[s] <= m.hydro_DA + m.hydro_res_DA
 def hydro_lower_RT(m, s):
     return m.hydro_RT[s] >= m.hydro_DA - m.hydro_res_DA
-def hydro_res(m):
-    return m.hydro_res_DA == const['p_res']
+def hydro_res_min(m):
+    return m.hydro_res_DA >= 0
 
 
 """Objective Function"""
@@ -118,13 +115,13 @@ def modelSetup_1(data):
     m.demand =      pyo.Param(m.L, initialize=data['Consumers']['consumption'])
     m.cost_rat =    pyo.Param(m.L, initialize=data['Consumers']['rationing cost'])
     m.P_wind =      pyo.Param(m.S, initialize=data['Time_wind'])
-    m.prob =        pyo.Param(m.S, initialize={'low': 1/3, 'med': 1/3, 'high': 1/3})
+    m.prob =        pyo.Param(m.S, initialize={'low': 0.5, 'med': 0.3, 'high': 0.2})
     m.wind_DA = sum(m.prob[s] * m.P_wind[s] for s in m.S)
 
     """Variables"""
     m.nuclear_DA =  pyo.Var(bounds=limit_nuclear_DA, within=pyo.NonNegativeReals)
     m.hydro_DA =    pyo.Var(bounds=limit_hydro_DA, within=pyo.NonNegativeReals)
-    m.hydro_res_DA = pyo.Var(bounds=reserved_DA, within=pyo.NonNegativeReals)
+    m.hydro_res_DA = pyo.Var(within=pyo.NonNegativeReals)
     m.wind_prod_DA = pyo.Var(within=pyo.NonNegativeReals)  # Wind production in day-ahead
     m.nuclear_RT =  pyo.Var(m.S, bounds=limit_nuclear_RT, within=pyo.NonNegativeReals)
     m.hydro_RT =    pyo.Var(m.S, bounds=limit_hydro_RT, within=pyo.NonNegativeReals)
@@ -140,17 +137,13 @@ def modelSetup_1(data):
     m.HydroLower_RT = pyo.Constraint(m.S, rule=hydro_lower_RT)
     m.WindProdDAConstraint = pyo.Constraint(expr=m.wind_prod_DA == m.wind_DA)
     m.WindProdRTConstraint = pyo.Constraint(m.S, rule=lambda m, s: m.wind_prod_RT[s] == m.P_wind[s])
-    m.Hydroreserved_DA = pyo.Constraint(rule=hydro_res)
+    m.HydroResMin = pyo.Constraint(rule=hydro_res_min)
 
 
     """Objective Function"""
     m.obj =         pyo.Objective(rule=ObjFunction, sense=pyo.minimize)
 
     return m
-
-
-
-
 
 
 # Solve function
