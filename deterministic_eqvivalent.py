@@ -58,7 +58,7 @@ def inputData(file):
 
     return data
 
-const = {'p_res_min' : 20,'MC_res' : 25}
+const = {'MC_res' : 25}
 
 """Set Variable Bounds"""
 def limit_nuclear_DA(m):
@@ -82,7 +82,7 @@ def rationing_limits(m, l, s):
 def locked_nuclear_prod(m, s):
     return m.nuclear_DA == m.nuclear_RT[s]
 def load_balance_DA(m):
-    return m.nuclear_DA + m.hydro_DA + m.wind_DA >= m.demand["Load 1"]
+    return m.nuclear_DA + m.hydro_DA + m.wind_DA == m.demand["Load 1"]
 def load_balance_RT(m, s):
     return m.hydro_RT[s] + m.wind_prod_RT[s] + m.nuclear_RT[s] + m.rationing["Load 1", s] >= m.demand["Load 1"]
 def hydro_upper_RT(m, s):
@@ -93,12 +93,20 @@ def hydro_res_min(m):
     return m.hydro_res_DA >= 0
 
 
+# """Objective Function"""
+# def ObjFunction(m):
+#     production_cost_DA = m.hydro_res_DA * const['MC_res']
+#     production_cost_RT = sum(m.prob[s] * (m.MC['nuclear'] * m.nuclear_RT[s] + m.MC['hydro'] * m.hydro_RT[s]) for s in m.S)
+#     rationing_cost = sum(m.prob[s] * m.cost_rat[l] * m.rationing[l, s] for l in m.L for s in m.S)
+#     return production_cost_DA + production_cost_RT + rationing_cost
+
 """Objective Function"""
 def ObjFunction(m):
-    production_cost_DA = m.hydro_res_DA * const['MC_res']
-    production_cost_RT = sum(m.prob[s] * (m.MC['nuclear'] * m.nuclear_RT[s] + m.MC['hydro'] * m.hydro_RT[s]) for s in m.S)
+    production_cost_DA = m.hydro_res_DA * const['MC_res'] + m.hydro_DA * m.MC['hydro'] + m.nuclear_DA * m.MC['nuclear']
+    production_cost_RT = sum(m.prob[s] * (m.MC['hydro'] * (m.hydro_RT[s]-m.hydro_DA)) for s in m.S)
     rationing_cost = sum(m.prob[s] * m.cost_rat[l] * m.rationing[l, s] for l in m.L for s in m.S)
     return production_cost_DA + production_cost_RT + rationing_cost
+
 
 
 def modelSetup_1(data):
@@ -115,7 +123,7 @@ def modelSetup_1(data):
     m.demand =      pyo.Param(m.L, initialize=data['Consumers']['consumption'])
     m.cost_rat =    pyo.Param(m.L, initialize=data['Consumers']['rationing cost'])
     m.P_wind =      pyo.Param(m.S, initialize=data['Time_wind'])
-    m.prob =        pyo.Param(m.S, initialize={'low': 0.5, 'med': 0.3, 'high': 0.2})
+    m.prob =        pyo.Param(m.S, initialize={'low': 0.1, 'med': 0.4, 'high': 0.5})
     m.wind_DA = sum(m.prob[s] * m.P_wind[s] for s in m.S)
 
     """Variables"""
