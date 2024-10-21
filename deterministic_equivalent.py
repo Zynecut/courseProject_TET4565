@@ -78,7 +78,6 @@ def rationing_limits(m, l, s):
 
 
 """Constraints"""
-
 def locked_nuclear_prod(m, s):
     return m.nuclear_DA == m.nuclear_RT[s]
 def load_balance_DA(m):
