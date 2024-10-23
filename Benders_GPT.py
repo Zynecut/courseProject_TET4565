@@ -1,4 +1,4 @@
-# Benders decomposition for multiple scenarios
+# Benders decomposition for one scenario
 import pandas as pd
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
@@ -66,7 +66,6 @@ def masterModel(data, Cuts):
 
     """Sets"""
     m.G = pyo.Set(initialize=list(data['Producers']['p_max'].keys()))  # ('nuclear', 'hydro', 'wind')
-    m.S = pyo.Set(initialize=list(data['Time_wind'].keys()))  # Scenario set: ('low', 'med', 'high')
 
     """Parameters"""
     m.P_max = pyo.Param(m.G, initialize=data['Producers']['p_max'])
@@ -75,7 +74,6 @@ def masterModel(data, Cuts):
     m.demand = pyo.Param(initialize=data['Consumers']['consumption']['Load 1'])
     m.wind_DA = pyo.Param(initialize=45.6)  # Hardcode for now
     m.C_res = pyo.Param(initialize=25)
-    m.prob = pyo.Param(m.S, initialize={'low': 1/3, 'med': 1/3, 'high': 1/3})  # Scenario probabilities
 
     """Variables"""
     m.nuclear_DA = pyo.Var(within=pyo.NonNegativeReals)
@@ -105,30 +103,30 @@ def masterModel(data, Cuts):
 
 
 def Obj_2nd(m):
-    return sum(m.prob[s] * (m.hydro_RT[s] * m.MC['hydro'] + m.rationing[s] * m.C_rat) for s in m.S)
+    return m.hydro_RT * m.MC['hydro'] + m.rationing * m.C_rat
 
 
-def RT_load_balance(m, s):
-    return m.nuclear_RT[s] + m.wind[s] + m.hydro_DA + m.hydro_RT[s] + m.rationing[s] >= m.demand
+def RT_load_balance(m):
+    return m.nuclear_RT + m.wind + m.hydro_DA + m.hydro_RT + m.rationing >= m.demand
 
 
-def hydro_RT_limit(m, s):
-    return -m.X_hat, m.hydro_RT[s], m.X_hat
+def hydro_RT_limit(m):
+    return -m.X_hat, m.hydro_RT, m.X_hat
 
 
-def rationing_limit(m, s):
-    return 0, m.rationing[s], m.demand
+def rationing_limit(m):
+    return 0, m.rationing, m.demand
 
 
 # ** New hydro constraints from deterministic model **
-def hydro_upper_RT(m, s):
+def hydro_upper_RT(m):
     """Upper bound for hydro_RT: hydro_RT <= hydro_DA + hydro_res_DA"""
-    return m.hydro_RT[s] <= m.hydro_DA + m.hydro_res_DA
+    return m.hydro_RT <= m.hydro_DA + m.hydro_res_DA
 
 
-def hydro_lower_RT(m, s):
+def hydro_lower_RT(m):
     """Lower bound for hydro_RT: hydro_RT >= hydro_DA - hydro_res_DA"""
-    return m.hydro_RT[s] >= m.hydro_DA - m.hydro_res_DA
+    return m.hydro_RT >= m.hydro_DA - m.hydro_res_DA
 
 
 def subModel(data, X_hat, DA_values, wind):
@@ -136,34 +134,32 @@ def subModel(data, X_hat, DA_values, wind):
 
     """Sets"""
     m.G = pyo.Set(initialize=list(data['Producers']['p_max'].keys()))  # ('nuclear', 'hydro', 'wind')
-    m.S = pyo.Set(initialize=list(data['Time_wind'].keys()))  # Scenario set: ('low', 'med', 'high')
 
     """Parameters"""
     m.MC = pyo.Param(m.G, initialize=data['Producers']['marginal_cost'])
     m.demand = pyo.Param(initialize=data['Consumers']['consumption']["Load 1"])
     m.C_rat = pyo.Param(initialize=data['Consumers']['rationing_cost']["Load 1"])
-    m.wind = pyo.Param(m.S, initialize=wind)
-    m.nuclear_RT = pyo.Param(m.S, initialize=DA_values["nuclear_DA"])
+    m.wind = pyo.Param(initialize=wind)
+    m.nuclear_RT = pyo.Param(initialize=DA_values["nuclear_DA"])
     m.hydro_DA = pyo.Param(initialize=DA_values["hydro_DA"])
     m.hydro_res_DA = pyo.Param(initialize=DA_values["hydro_res_DA"])
     m.X_hat = pyo.Param(initialize=X_hat)
-    m.prob = pyo.Param(m.S, initialize={'low': 0.3, 'med': 0.4, 'high': 0.3})  # Scenario probabilities
 
     """Variables"""
-    m.hydro_RT = pyo.Var(m.S, within=pyo.NonNegativeReals)
-    m.rationing = pyo.Var(m.S, within=pyo.NonNegativeReals)
+    m.hydro_RT = pyo.Var(within=pyo.NonNegativeReals)
+    m.rationing = pyo.Var(within=pyo.NonNegativeReals)
 
     """Constraints"""
-    m.RT_balance = pyo.Constraint(m.S, rule=RT_load_balance)
+    m.RT_balance = pyo.Constraint(rule=RT_load_balance)
 
     # Handling the case where X_hat is zero (no reserve)
     if pyo.value(X_hat) == 0:
-        m.hydro_RT_eq = pyo.Constraint(m.S, rule=lambda m, s: m.hydro_RT[s] == m.hydro_DA)
+        m.hydro_RT_eq = pyo.Constraint(expr=m.hydro_RT == m.hydro_DA)
     else:
-        m.hydro_upper_RT = pyo.Constraint(m.S, rule=hydro_upper_RT)
-        m.hydro_lower_RT = pyo.Constraint(m.S, rule=hydro_lower_RT)
+        m.hydro_upper_RT = pyo.Constraint(rule=hydro_upper_RT)
+        m.hydro_lower_RT = pyo.Constraint(rule=hydro_lower_RT)
 
-    m.rationing_lim = pyo.Constraint(m.S, rule=rationing_limit)
+    m.rationing_lim = pyo.Constraint(rule=rationing_limit)
 
     """Objective Function"""
     m.obj = pyo.Objective(rule=Obj_2nd, sense=pyo.minimize)
@@ -176,7 +172,7 @@ def manageCuts(Cuts, m):
     cut = len(Cuts["Set"])
     Cuts['Set'].append(cut)
     Cuts['Phi'][cut] = pyo.value(m.obj)
-    Cuts['lambda'][cut] = sum(m.dual[m.RT_balance[s]] for s in m.S)  # Endret fra m.hydro_upper_RT til m.RT_balance
+    Cuts['lambda'][cut] = m.dual[m.RT_balance]  # Endret fra m.reserve til m.hydro_upper_RT
     Cuts['x_hat'][cut] = pyo.value(m.X_hat)
     return Cuts
 
@@ -190,9 +186,8 @@ def display_results_benders(m_1st, m_2nd):
     print(f"Objective Function (Master): {pyo.value(m_1st.obj)}")
 
     print("\n--- Subproblem Results ---")
-    for s in m_2nd.S:
-        print(f"Scenario {s} - Hydro RT: {pyo.value(m_2nd.hydro_RT[s])}")
-        print(f"Scenario {s} - Rationing: {pyo.value(m_2nd.rationing[s])}")
+    print(f"Hydro RT: {pyo.value(m_2nd.hydro_RT)}")
+    print(f"Rationing: {pyo.value(m_2nd.rationing)}")
     print(f"Objective Function (Subproblem): {pyo.value(m_2nd.obj)}")
 
 
@@ -218,7 +213,7 @@ def benders(data):
         X_hat = pyo.value(m_1st.hydro_res_DA)
         DA_values = {"nuclear_DA": pyo.value(m_1st.nuclear_DA), "hydro_DA": pyo.value(m_1st.hydro_DA),
                      "hydro_res_DA": pyo.value(m_1st.hydro_res_DA)}
-        wind = data['Time_wind']
+        wind = data['Time_wind']['low']
 
         print(f"X_hat (Hydro Reserve DA): {X_hat}")
 

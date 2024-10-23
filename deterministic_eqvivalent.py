@@ -121,9 +121,9 @@ def modelSetup_1(data):
     m.P_min =       pyo.Param(m.G, initialize=data['Producers']['p_min'])
     m.MC =          pyo.Param(m.G, initialize=data['Producers']['marginal_cost'])
     m.demand =      pyo.Param(m.L, initialize=data['Consumers']['consumption'])
-    m.cost_rat =    pyo.Param(m.L, initialize=data['Consumers']['rationing cost'])
+    m.cost_rat =    pyo.Param(m.L, initialize=data['Consumers']['rationing_cost'])
     m.P_wind =      pyo.Param(m.S, initialize=data['Time_wind'])
-    m.prob =        pyo.Param(m.S, initialize={'low': 1/3, 'med': 1/3, 'high': 1/3})
+    m.prob =        pyo.Param(m.S, initialize={'low': 0, 'med': 1, 'high': 0})
     m.wind_DA = sum(m.prob[s] * m.P_wind[s] for s in m.S)
 
     """Variables"""
