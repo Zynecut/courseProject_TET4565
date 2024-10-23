@@ -90,9 +90,11 @@ def Obj_2nd(m):
 def RT_load_balance(m, s):
     return m.hydro_RT[s] + m.wind_RT[s] + m.nuclear_RT[s] + m.rationing[s] >= m.demand
 def hydro_link_RT(m, s):
-    """link hydro_RT with hydro_DA ± hydro_res_DA"""
+    """Link upper bound for hydro_RT with hydro_DA + hydro_res_DA"""
     return m.hydro_RT[s] <= m.hydro_DA + m.X_hat
-
+def hydro_lower_RT(m, s):
+    """Link lower bound for hydro_RT: hydro_RT >= hydro_DA - hydro_res_DA"""
+    return m.hydro_RT[s] >= m.hydro_DA - m.X_hat
 
 def subModel(data, X_hat, DA_values, probability):
     """Setup Sub Problem Model"""
@@ -114,7 +116,8 @@ def subModel(data, X_hat, DA_values, probability):
     m.rationing     = pyo.Var(m.S, bounds=(0, 250), within=pyo.NonNegativeReals)
     """Constraints"""
     m.RT_balance    = pyo.Constraint(m.S, rule=RT_load_balance)
-    m.hydro_link_RT = pyo.Constraint(m.S, rule=hydro_link_RT)
+    m.hydro_high_RT = pyo.Constraint(m.S, rule=hydro_link_RT)
+    m.hydro_low_RT  = pyo.Constraint(m.S, rule=hydro_lower_RT)
     """Objective Function"""
     m.obj           = pyo.Objective(rule=Obj_2nd, sense=pyo.minimize)
     return m
@@ -166,7 +169,7 @@ def benders(data):
         X_hat = pyo.value(m_1st.hydro_res_DA)
         DA_values = {"nuclear_DA": pyo.value(m_1st.nuclear_DA), "hydro_DA": pyo.value(m_1st.hydro_DA)}
 
-        probability = {'low': 0.3, 'med': 0.4, 'high': 0.3}
+        probability = {'low': 1/3, 'med': 1/3, 'high': 1/3}
         m_2nd = subModel(data, X_hat, DA_values, probability)
         results, m_2nd = Solve(m_2nd)
 
@@ -184,8 +187,8 @@ def benders(data):
         # Display the results of this iteration
         print(f"\n------ Iteration {i + 1} ------")
         print(f"X_hat (Hydro Reserve DA): {X_hat:.2f}")
-        # for component in Cuts:
-        #     print(component, Cuts[component])
+        for component in Cuts:
+            print(component, Cuts[component])
         display_results_benders(m_1st, m_2nd)
 
         """Convergence check"""
