@@ -1,0 +1,10 @@
+\ Model x1_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ c_e_x7_: x4 + x5 = 215.496
+Bounds
+ -infinity <= x4 <= 150
+ -infinity <= x5 <= 60
+End
