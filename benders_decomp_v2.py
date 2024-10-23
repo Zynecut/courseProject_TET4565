@@ -2,10 +2,16 @@
 import pandas as pd
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
+import matplotlib.pyplot as plt
 
 """
 Benders decomposition for one scenario
 """
+
+def main():
+    file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
+    data = inputData(file_name)
+    benders(data)
 
 def inputData(file):
     """
@@ -45,8 +51,12 @@ def nuclear_lim(m):
     return m.P_min['nuclear'], m.nuclear_DA, m.P_max['nuclear']
 def hydro_lim(m):
     return m.P_min['hydro'], m.hydro_DA, m.P_max['hydro']
+# def hydro_max(m):
+#     return m.hydro_DA <= m.P_max['hydro'] - m.hydro_res_DA
 def hydro_res_min(m):
     return m.hydro_res_DA >= 0
+
+
 def CreateCuts(m, c):
     return m.alpha >= m.Phi[c] - m.Lambda[c] * (m.hydro_res_DA - m.X_hat[c])
 
@@ -77,6 +87,7 @@ def masterModel(data, Cuts):
     m.nuclear_lim   = pyo.Constraint( rule=nuclear_lim)
     m.hydro_lim     = pyo.Constraint(rule=hydro_lim)
     m.HydroResMin   = pyo.Constraint(rule=hydro_res_min)
+    # m.hydro_max     = pyo.Constraint(rule=hydro_max)
     m.CreateCuts    = pyo.Constraint(m.Cut, rule=CreateCuts)
     """Objective Function"""
     m.obj           = pyo.Objective(rule=Obj_1st, sense=pyo.minimize)
@@ -88,7 +99,7 @@ def Obj_2nd(m):
 def RT_load_balance(m):
     return m.nuclear_RT + m.wind + m.hydro_DA + m.hydro_RT + m.rationing >= m.demand
 def hydro_RT_limit(m):
-    return -m.hydro_res_DA, m.hydro_RT, m.hydro_res_DA
+    return -m.X_hat, m.hydro_RT, m.X_hat
 def rationing_limit(m):
     return 0, m.rationing, m.demand
 def reserve(m):
@@ -108,7 +119,7 @@ def subModel(data, X_hat, DA_values, wind):
     # m.prob          = pyo.Param(m.S, initialize={'low': 1 / 3, 'med': 1 / 3, 'high': 1 / 3})
     m.nuclear_RT    = pyo.Param(initialize=DA_values["nuclear_DA"])
     m.hydro_DA      = pyo.Param(initialize=DA_values["hydro_DA"])
-    m.hydro_res_DA  = pyo.Param(initialize=DA_values["hydro_res_DA"])
+    # m.hydro_res_DA  = pyo.Param(initialize=DA_values["hydro_res_DA"])
     m.X_hat         = pyo.Param(initialize=X_hat)
     """Variables"""
     m.hydro_RT      = pyo.Var(within=pyo.NonNegativeReals)
@@ -151,7 +162,11 @@ def benders(data):
     Cuts["lambda"] = {}
     Cuts["x_hat"] = {}
 
-    for i in range (5):
+    graph = {}
+    graph["UB"] = {}
+    graph["LB"] = {}
+
+    for i in range (10):
         m_1st = masterModel(data, Cuts)
         Solve(m_1st)
 
@@ -172,6 +187,8 @@ def benders(data):
         for component in Cuts:
             print(component, Cuts[component])
 
+        graph['UB'][i] = pyo.value(m_1st.alpha.value)
+        graph['LB'][i] = pyo.value(m_2nd.obj)
         print("UB:", pyo.value(m_1st.alpha.value), "- LB:", pyo.value(m_2nd.obj))
         """Convergence check"""
         if (abs(pyo.value(m_1st.alpha.value) - pyo.value(m_2nd.obj)) <= 0.001) or i > 10:
@@ -179,9 +196,16 @@ def benders(data):
         #DisplayResults(m_2nd)
         input()
 
+    # Ploting the result
+    plt.plot(graph['UB'].keys(), graph['UB'].values(), label='Upper Bound (UB)')
+    plt.plot(graph['LB'].keys(), graph['LB'].values(), label='Lower Bound (LB)')
+    plt.xlabel('Iterations')
+    plt.ylabel('Euro')
+    plt.title('UB and LB')
+    plt.legend()
+    plt.show()
+
 
 
 if __name__ == '__main__':
-    file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
-    data = inputData(file_name)
-    benders(data)
+    main()
