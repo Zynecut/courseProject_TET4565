@@ -9,7 +9,7 @@ from sphinx.ext.graphviz import graphviz
 
 
 def main():
-    file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
+    file_name = '../Datasett_NO1_Cleaned_r5.xlsx'
     data = inputData(file_name)
     benders(data)
 

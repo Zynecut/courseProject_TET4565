@@ -129,7 +129,7 @@ def modelSetup_1(data):
     m.nuclear_DA =      pyo.Var(bounds=limit_nuclear_DA, within=pyo.NonNegativeReals)
     m.hydro_DA =        pyo.Var(bounds=limit_hydro_DA, within=pyo.NonNegativeReals)
     m.hydro_res_DA =    pyo.Var(within=pyo.NonNegativeReals)
-    m.wind_prod_DA =    pyo.Var(within=pyo.NonNegativeReals)  # Wind production in day-ahead
+    # m.wind_prod_DA =    pyo.Var(within=pyo.NonNegativeReals)  # Wind production in day-ahead
     m.nuclear_RT =      pyo.Var(m.S, bounds=limit_nuclear_RT, within=pyo.NonNegativeReals)
     m.hydro_RT =        pyo.Var(m.S, bounds=limit_hydro_RT, within=pyo.NonNegativeReals)
     m.wind_prod_RT =    pyo.Var(m.S, within=pyo.NonNegativeReals)
@@ -142,7 +142,7 @@ def modelSetup_1(data):
     m.LoadBalance_RT =          pyo.Constraint(m.S, rule=load_balance_RT)
     m.HydroUpper_RT =           pyo.Constraint(m.S, rule=hydro_upper_RT)  # Hydro_RT <= Hydro_DA + reserved capacity
     m.HydroLower_RT =           pyo.Constraint(m.S, rule=hydro_lower_RT)
-    m.WindProdDAConstraint =    pyo.Constraint(expr=m.wind_prod_DA == m.wind_DA)
+    # m.WindProdDAConstraint =    pyo.Constraint(expr=m.wind_prod_DA == m.wind_DA)
     m.WindProdRTConstraint =    pyo.Constraint(m.S, rule=lambda m, s: m.wind_prod_RT[s] == m.P_wind[s])
     m.HydroResMin =             pyo.Constraint(rule=hydro_res_min)
 
