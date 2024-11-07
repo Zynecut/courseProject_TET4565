@@ -3,12 +3,16 @@ import pandas as pd
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
+import time
 
 
 def main():
     file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
     data = inputData(file_name)
+    start_time = time.time()
     benders(data)
+    end_time = time.time()
+    print(f"Time elapsed: {end_time - start_time:.2f} seconds")
 
 
 def inputData(file):

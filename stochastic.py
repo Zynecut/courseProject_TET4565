@@ -4,6 +4,7 @@ import pandas as pd
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 import pprint
+import time
 
 # Structure
 
@@ -20,10 +21,13 @@ def main():
     file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
     data = inputData(file_name)
     pprint.pprint(data, width=1)
+    start_time = time.time()
     model = modelSetup_1(data)
     results, model = SolveModel(model)
+    end_time = time.time()
     DisplayModelResults(model)
     print(f"Objective function value: {pyo.value(model.obj):.2f}")
+    print(f"Time elapsed: {end_time - start_time:.2f} seconds")
 
 
 def inputData(file):

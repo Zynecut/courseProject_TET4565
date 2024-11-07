@@ -4,13 +4,17 @@ import numpy as np
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
+import time
 
 
 def main():
     file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
     data = inputData(file_name)
     # benders(data)
+    start_time = time.time()
     SDP(data)
+    end_time = time.time()
+    print(f"Time elapsed: {end_time - start_time:.2f} seconds")
 
 def inputData(file):
     data = {}
@@ -67,7 +71,7 @@ def masterModel(data, Cuts):
     m.nuclear_DA    = pyo.Var(within=pyo.NonNegativeReals)
     m.hydro_DA      = pyo.Var(within=pyo.NonNegativeReals, bounds=(0, m.P_max['hydro']))
     m.hydro_res_DA  = pyo.Var(within=pyo.NonNegativeReals)
-    m.alpha         = pyo.Var(bounds=(-10000, 10000))
+    m.alpha         = pyo.Var(bounds=(-1000, 1000))
     """Cuts"""
     m.Cut           = pyo.Set(initialize=Cuts["Set"])  # Set for cuts
     m.Phi           = pyo.Param(m.Cut, initialize=Cuts["Phi"])  # Parameter for Phi (Objective cost)
@@ -143,7 +147,7 @@ def SDP(data):
     Min = 0
     Max = 5.5
     # How large each discrete jump is in value
-    states_jump = 0.575
+    states_jump = 2.6  # 10 values: 0.5777, 3 values: 2.6
     # List_states = [i for i in range(Min, Max, states_jump)]
     List_states = [i for i in np.arange(Min, Max, states_jump)]
 
@@ -178,7 +182,7 @@ def SDP(data):
         # Set 1st stage result
         X_hat = initial_value
         DA_values = {"nuclear_DA": 150, "hydro_DA": 54.80}
-        probability = {'low': 1/3, 'med': 1/3, 'high': 1/3}
+        probability = {'low': 1, 'med':0 , 'high': 0}
 
 
         # If the combination is invalid (sum of grain planted > Max), we skip
@@ -207,7 +211,7 @@ def SDP(data):
     print(f"X_hat (Hydro Reserve DA): {X_hat:.2f}")
     print(pyo.value(m_1st.alpha.value))
     print(f"Objective Value: {pyo.value(m_1st.obj)}")
-
+    # print(Cuts)
     # Plotting av cut generering
     plt.figure(figsize=(10, 6))
     plt.plot(x_values, alpha_values, 'o-', color='teal', label="Cuts")
@@ -219,6 +223,16 @@ def SDP(data):
     plt.legend()
     plt.grid(True)
     plt.show()
+
+    # Plotting av Objective cost for different cuts
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(Cuts['Set'], Cuts['Phi'].values(), 'o-', color='teal', label="Cuts")
+    # plt.xlabel("Cuts")
+    # plt.ylabel("Objective Value for different cuts")
+    # plt.title("Objective value for each cut")
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
 
 
 def Solve(m):
