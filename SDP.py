@@ -1,5 +1,6 @@
 # Benders decomposition for multiple scenarios
 import pandas as pd
+import numpy as np
 import pyomo.environ as pyo
 from pyomo.opt import SolverFactory
 import matplotlib.pyplot as plt
@@ -64,7 +65,7 @@ def masterModel(data, Cuts):
     m.wind_DA       = pyo.Param(initialize=data['Time_wind']['med'])
     """Variables"""
     m.nuclear_DA    = pyo.Var(within=pyo.NonNegativeReals)
-    m.hydro_DA      = pyo.Var(within=pyo.NonNegativeReals)
+    m.hydro_DA      = pyo.Var(within=pyo.NonNegativeReals, bounds=(0, m.P_max['hydro']))
     m.hydro_res_DA  = pyo.Var(within=pyo.NonNegativeReals)
     m.alpha         = pyo.Var(bounds=(-10000, 10000))
     """Cuts"""
@@ -85,7 +86,7 @@ def masterModel(data, Cuts):
 
 """Sub-problem formulation"""
 def Obj_2nd(m):
-    return sum(m.prob[s] * (m.hydro_RT[s] * m.MC['hydro'] + m.rationing[s] * m.C_rat) for s in m.S)
+    return sum(m.prob[s] * ((m.hydro_RT[s]-m.hydro_DA) * m.MC['hydro'] + m.rationing[s] * m.C_rat) for s in m.S)
 """Constraints"""
 def RT_load_balance(m, s):
     return m.hydro_RT[s] + m.wind_RT[s] + m.nuclear_RT[s] + m.rationing[s] >= m.demand
@@ -133,78 +134,6 @@ def manageCuts(Cuts, m):
     return Cuts
 
 
-def display_results_benders(m_1st, m_2nd):
-    """Display the results for the current iteration"""
-    print("\n--- Master Problem Results ---")
-    print(f"Nuclear DA: {pyo.value(m_1st.nuclear_DA):.2f}")
-    print(f"Hydro DA: {pyo.value(m_1st.hydro_DA):.2f}")
-    print(f"Hydro Reserve DA: {pyo.value(m_1st.hydro_res_DA):.2f}")
-    print(f"Objective Function (Master-Problem): {pyo.value(m_1st.obj):.2f}")
-    print("\n--- Sub-Problem Results ---")
-    for s in m_2nd.S:
-        print(f"Scenario {s} - Wind: {pyo.value(m_2nd.wind_RT[s]):.2f}")  # Print wind for each scenario
-        print(f"Scenario {s} - Hydro RT: {pyo.value(m_2nd.hydro_RT[s]):.2f}")
-        print(f"Scenario {s} - Rationing: {pyo.value(m_2nd.rationing[s]):.2f}")
-    print(f"Objective Function (Sub-Problem): {pyo.value(m_2nd.obj):.2f}")
-    print("\n--- Total Objective Value ---")
-    print(f"{pyo.value(m_1st.obj):.2f} - {pyo.value(m_2nd.obj):.2f} = {(pyo.value(m_1st.obj) - pyo.value(m_2nd.obj)):.2f}")
-
-
-def benders(data):
-    """Setup for benders decomposition"""
-    Cuts = {}
-    Cuts["Set"] = []
-    Cuts["Phi"] = {}
-    Cuts["lambda"] = {}
-    Cuts["x_hat"] = {}
-
-    graph = {}
-    graph["UB"] = {}
-    graph["LB"] = {}
-
-    for i in range(10):
-        m_1st = masterModel(data, Cuts)
-        Solve(m_1st)
-
-        X_hat = pyo.value(m_1st.hydro_res_DA)
-        DA_values = {"nuclear_DA": pyo.value(m_1st.nuclear_DA), "hydro_DA": pyo.value(m_1st.hydro_DA)}
-
-        probability = {'low': 1/3, 'med': 1/3, 'high': 1/3}
-        m_2nd = subModel(data, X_hat, DA_values, probability)
-        results, m_2nd = Solve(m_2nd)
-
-        # Check if the subproblem was solved successfully
-        if results.solver.termination_condition == 'infeasible':
-            print("Subproblem infeasible. Skipping iteration.")
-            break
-
-        Cuts = manageCuts(Cuts, m_2nd)
-
-        # Store upper and lower bounds for plotting
-        graph['LB'][i] = pyo.value(m_1st.alpha)
-        graph['UB'][i] = pyo.value(m_2nd.obj)
-
-        # Display the results of this iteration
-        print(f"\n------ Iteration {i + 1} ------")
-        print(f"X_hat (Hydro Reserve DA): {X_hat:.2f}")
-        for component in Cuts:
-            print(component, Cuts[component])
-        display_results_benders(m_1st, m_2nd)
-
-        """Convergence check"""
-        if abs(graph['UB'][i] - graph['LB'][i]) <= 0.001:
-            break
-
-    # Plotting the result
-    plt.plot(graph['UB'].keys(), graph['UB'].values(), label='Upper Bound (UB)')
-    plt.plot(graph['LB'].keys(), graph['LB'].values(), label='Lower Bound (LB)')
-    plt.xlabel('Iterations')
-    plt.ylabel('Euro')
-    plt.title('UB and LB')
-    plt.legend()
-    plt.show()
-
-
 def SDP(data):
     """Setup for Stochastic Dynamic Programming (SDP"""
 
@@ -212,10 +141,11 @@ def SDP(data):
 
     # Pre-step: determine the discretization we want to explore in the second-stage
     Min = 0
-    Max = 10
+    Max = 5.5
     # How large each discrete jump is in value
-    states_jump = 1
-    List_states = [i for i in range(Min, Max + states_jump, states_jump)]
+    states_jump = 0.575
+    # List_states = [i for i in range(Min, Max, states_jump)]
+    List_states = [i for i in np.arange(Min, Max, states_jump)]
 
     # Define the list of initial values for each decision variable
     Reserved_initial_value = List_states
@@ -240,7 +170,9 @@ def SDP(data):
     Cuts["lambda"] = {}
     Cuts["x_hat"] = {}
 
-    obj_value_2nd = []
+    x_values = []
+    alpha_values = []
+
     # For each combination we acquired
     for initial_value in Reserved_initial_value:
         # Set 1st stage result
@@ -256,9 +188,12 @@ def SDP(data):
             m_2nd = subModel(data, X_hat, DA_values, probability)
             Solve(m_2nd)
 
+
             Cuts = manageCuts(Cuts, m_2nd)
-            obj_value_2nd.append(pyo.value(m_2nd.obj))
         # If planted is higher than allowed
+
+            x_values.append(X_hat)
+            alpha_values.append(pyo.value(m_2nd.obj))
         else:
             pass
 
@@ -271,8 +206,19 @@ def SDP(data):
     # Print results 1st stage
     print(f"X_hat (Hydro Reserve DA): {X_hat:.2f}")
     print(pyo.value(m_1st.alpha.value))
-    print(f"Objective Value: {pyo.value(m_1st.obj) - sum(obj_value_2nd)/len(Reserved_initial_value):.2f}")
-    x = 1
+    print(f"Objective Value: {pyo.value(m_1st.obj)}")
+
+    # Plotting av cut generering
+    plt.figure(figsize=(10, 6))
+    plt.plot(x_values, alpha_values, 'o-', color='teal', label="Cuts")
+    for i, (x, y) in enumerate(zip(x_values, alpha_values)):
+        plt.annotate(f"Cut {i+1}: ({x:.2f}, {y:.2f})", (x, y), ha='right', va='bottom')
+    plt.xlabel("Hydro Reserve DA [MW]")
+    plt.ylabel("Objective Value (Second-Stage)")
+    plt.title("Cut Generation in SDP")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 def Solve(m):

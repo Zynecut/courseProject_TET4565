@@ -85,7 +85,7 @@ def masterModel(data, Cuts):
 
 """Sub-problem formulation"""
 def Obj_2nd(m):
-    return sum(m.prob[s] * (m.hydro_RT[s] * m.MC['hydro'] + m.rationing[s] * m.C_rat) for s in m.S)
+    return sum(m.prob[s] * ((m.hydro_RT[s] - m.hydro_DA) * m.MC['hydro'] + m.rationing[s] * m.C_rat) for s in m.S)
 """Constraints"""
 def RT_load_balance(m, s):
     return m.hydro_RT[s] + m.wind_RT[s] + m.nuclear_RT[s] + m.rationing[s] >= m.demand
@@ -147,7 +147,8 @@ def display_results_benders(m_1st, m_2nd):
         print(f"Scenario {s} - Rationing: {pyo.value(m_2nd.rationing[s]):.2f}")
     print(f"Objective Function (Sub-Problem): {pyo.value(m_2nd.obj):.2f}")
     print("\n--- Total Objective Value ---")
-    print(f"{pyo.value(m_1st.obj):.2f} - {pyo.value(m_2nd.obj):.2f} = {(pyo.value(m_1st.obj) - pyo.value(m_2nd.obj)):.2f}")
+    # rat = sum(pyo.value(m_2nd.prob[s]) * pyo.value(m_2nd.rationing[s]) for s in m_2nd.S) * m_2nd.C_rat
+    print(f"{pyo.value(m_1st.obj):.2f}") # - {pyo.value(m_2nd.obj):.2f} + {rat:.2f} = {(pyo.value(m_1st.obj) - pyo.value(m_2nd.obj) + rat):.2f}")
 
 
 def benders(data):

@@ -13,7 +13,6 @@ Stochasticity in linear programming
 Hard constraints -> Robust optimization
 Soft constraints -> Chance constraints
 
-
 """
 
 def main():
@@ -24,6 +23,7 @@ def main():
     model = modelSetup_1(data)
     results, model = SolveModel(model)
     DisplayModelResults(model)
+    print(f"Objective function value: {pyo.value(model.obj):.2f}")
 
 
 def inputData(file):
@@ -101,8 +101,8 @@ def hydro_res_min(m):
 
 """Objective Function"""
 def ObjFunction(m):
-    production_cost_DA = m.hydro_res_DA * const['MC_res'] + m.hydro_DA * m.MC['hydro'] + m.nuclear_DA * m.MC['nuclear']
-    production_cost_RT = sum(m.prob[s] * (m.MC['hydro'] * (m.hydro_RT[s]-m.hydro_DA)) for s in m.S)
+    production_cost_DA = m.hydro_res_DA * const['MC_res']  + m.nuclear_DA * m.MC['nuclear']
+    production_cost_RT = sum(m.prob[s] * (m.MC['hydro'] * (m.hydro_RT[s])) for s in m.S)
     rationing_cost = sum(m.prob[s] * m.cost_rat[l] * m.rationing[l, s] for l in m.L for s in m.S)
     return production_cost_DA + production_cost_RT + rationing_cost
 
