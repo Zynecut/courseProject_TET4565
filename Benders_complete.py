@@ -66,7 +66,7 @@ def masterModel(data, Cuts):
     m.nuclear_DA    = pyo.Var(within=pyo.NonNegativeReals)
     m.hydro_DA      = pyo.Var(within=pyo.NonNegativeReals)
     m.hydro_res_DA  = pyo.Var(within=pyo.NonNegativeReals)
-    m.alpha         = pyo.Var(bounds=(-10000, 10000))
+    m.alpha         = pyo.Var(bounds=(-1000, 1000))
     """Cuts"""
     m.Cut           = pyo.Set(initialize=Cuts["Set"])  # Set for cuts
     m.Phi           = pyo.Param(m.Cut, initialize=Cuts["Phi"])  # Parameter for Phi (Objective cost)
