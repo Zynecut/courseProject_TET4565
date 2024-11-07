@@ -147,7 +147,7 @@ def SDP(data):
     Min = 0
     Max = 5.5
     # How large each discrete jump is in value
-    states_jump = 2.6  # 10 values: 0.5777, 3 values: 2.6
+    states_jump = 0.5777  # 10 values: 0.5777, 3 values: 2.6
     # List_states = [i for i in range(Min, Max, states_jump)]
     List_states = [i for i in np.arange(Min, Max, states_jump)]
 
@@ -182,7 +182,7 @@ def SDP(data):
         # Set 1st stage result
         X_hat = initial_value
         DA_values = {"nuclear_DA": 150, "hydro_DA": 54.80}
-        probability = {'low': 1, 'med':0 , 'high': 0}
+        probability = {'low': 1/3, 'med': 1/3, 'high': 1/3}
 
 
         # If the combination is invalid (sum of grain planted > Max), we skip
