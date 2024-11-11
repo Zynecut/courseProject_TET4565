@@ -7,7 +7,7 @@ import time
 
 
 def main():
-    file_name = 'Datasett_NO1_Cleaned_r5.xlsx'
+    file_name = 'dataset.xlsx'
     data = inputData(file_name)
     start_time = time.time()
     benders(data)
