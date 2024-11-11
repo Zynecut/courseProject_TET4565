@@ -186,8 +186,8 @@ def benders(data):
         Cuts = manageCuts(Cuts, m_2nd)
 
         # Store upper and lower bounds for plotting
-        graph['LB'][i] = pyo.value(m_1st.alpha)
-        graph['UB'][i] = pyo.value(m_2nd.obj)
+        graph['UB'][i] = pyo.value(m_1st.alpha)
+        graph['LB'][i] = pyo.value(m_2nd.obj)
 
         # Display the results of this iteration
         print(f"\n------ Iteration {i + 1} ------")
@@ -203,6 +203,10 @@ def benders(data):
     # Plotting the result
     plt.plot(graph['UB'].keys(), graph['UB'].values(), label='Upper Bound (UB)')
     plt.plot(graph['LB'].keys(), graph['LB'].values(), label='Lower Bound (LB)')
+    for key, value in graph['UB'].items():
+        plt.text(key, value, f'({key}, {value:.2f})', fontsize=8, ha='right')
+    for key, value in graph['LB'].items():
+        plt.text(key, value, f'({key}, {value:.2f})', fontsize=8, ha='left')
     plt.xlabel('Iterations')
     plt.ylabel('Euro')
     plt.title('UB and LB')
